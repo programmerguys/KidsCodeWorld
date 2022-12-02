@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content="width=device-width,initial-scale=1">
+  <title>Teaching Python</title>
+  <script src="../js/jquery.min.js"></script>
+  <script src="../js/jquery.cokie.min.js"></script>
+  <script src="../js/jquery.qrcode.min.js"></script>
+  <script src="../js/qiniu.min.js"></script>
+  <script src="../js/common.js"></script>
+  <script>
+    var uploadParam = {}
+    var workName = ''
+    var workId = urlParams('workId')
+    var unitId = urlParams('unitId')
+    var departId = urlParams('departId')
+    var additionalId = urlParams('additionalId')
+    var access_token = getUserToken()
+    var userInfo = getUserInfo();
+    var qn_token = getQiniuToken();
+    setInterval(function () {
+      qn_token = getQiniuToken();
+    }, 600 * 1000)
+    // twl mine create course
+    var scene = urlParams("scene")
+
+    var observer = {
+      next(res) { },
+      error(err) {
+        console.log(1, err)
+      },
+      complete(res) {
+        uploadParam.projectKey = uploadFile(res.key, '学生作业-python', res.key, 2)
+        uploadWork()
+      }
+    }
+
+    function handleFileUploaded(res){
+      console.log(res);
+      if(res.success){
+        var key = res.message
+        uploadParam.projectKey = uploadFile(key, '学生作业-python', key, 1)
+        uploadWork()
+      }else{
+        alert("上传失败：" + res.message)
+      }
+    }
+
+
+    if (workId) {
+      getWorkInfo(workId, function (info) {
+        var myEvent = new CustomEvent('loadPorject', {
+          detail: {
+            projectName: info.workName,
+            url: info.workFileKey_url
+          }
+        });
+        setTimeout(()=>{
+          window.document.dispatchEvent(myEvent);
+        }, 500)
+      })
+    }
+
+    window.submitCode = function (projectName, code) {
+      console.log(code);
+      var uuid = window.uuid()
+      uploadParam.projectTitle = projectName
+      var defaultUploadType = JSON.parse(localStorage.getItem("CONFIG")).defaultUploadType
+      if(defaultUploadType == 'qiniu'){
+        upload2Qiniu(code, 'python/' + uuid + '.py', projectName, observer)
+      }else{
+        update2Local(new Blob([code], {type: 'text/plain'}),uploadParam.projectTitle + ".py", 'python', handleFileUploaded)
+      }
+    }
+
+    //上传作业
+    function uploadWork() {
+      $.ajax({
+        url: '/api/teaching/teachingWork/submit',
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        beforeSend: function (request) {
+          request.setRequestHeader('X-Access-Token', access_token)
+        },
+        data: JSON.stringify({
+          courseId: unitId,
+          workCover: "",
+          workFile: uploadParam.projectKey,
+          workName: uploadParam.projectTitle,
+          id: workId,
+          workType: 4,
+          departId: departId,
+          additionalId: additionalId,
+        }),
+        success: function (res) {
+          if (res.code == 200) {
+            alert("提交成功")
+          } else {
+          }
+        },
+        error: function () {
+        },
+        complete: function () {
+        }
+      })
+    }
+  </script>
+  <link href=./static/css/appPlayer.css rel=stylesheet>
+  <link href=./static/css/app.css rel=stylesheet>
+</head>
+
+<body>
+  <div id=app></div>
+  <script type=text/javascript src=./static/js/manifest.js></script>
+  <script type=text/javascript src=./static/js/vendor.js></script>
+  <script type=text/javascript src=./static/js/appPlayer.js></script>
+  <script type=text/javascript src=./static/js/app.js></script>
+</body>
+
+</html>

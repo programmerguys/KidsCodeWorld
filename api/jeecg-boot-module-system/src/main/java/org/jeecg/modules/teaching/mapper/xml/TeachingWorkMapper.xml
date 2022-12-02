@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.jeecg.modules.teaching.mapper.TeachingWorkMapper">
+
+    <select id="studentWorkInfo" resultType="org.jeecg.modules.teaching.model.StudentWorkModel">
+        select teaching_work.*,sys_user.username,sys_user.realname, sys_user.avatar, sys_user.sex,
+       (select file_path from sys_file where sys_file.id = teaching_work.work_file) workFileKey,
+       (select file_path from sys_file where sys_file.id = teaching_work.work_cover) coverFileKey
+        from teaching_work
+                 left join sys_user on teaching_work.user_id = sys_user.id
+        where sys_user.del_flag=0
+        and teaching_work.id = #{workId}
+    </select>
+    <select id="listWorkModel" resultType="org.jeecg.modules.teaching.model.StudentWorkModel">
+        select distinct (teaching_work.id) workId, teaching_work.*,
+               c.comment teacherComment, c.score,
+               sys_user.username, sys_user.realname, sys_user.update_time user_update_time, sys_user.avatar,
+        (select file_path from sys_file where sys_file.id = teaching_work.work_file) workFileKey,
+        (select file_path from sys_file where sys_file.id = teaching_work.work_cover) coverFileKey
+        from teaching_work
+        left join sys_user on teaching_work.user_id = sys_user.id
+        left join teaching_work_correct c on c.work_id = teaching_work.id
+        <if test="deptIds != null and deptIds.size()>0">
+            join sys_user_depart ud on sys_user.id = ud.user_id and dep_id in
+            <foreach collection="deptIds" index="index" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ${ew.customSqlSegment}
+    </select>
+
+    <select id="userAdditionalWork" resultType="org.jeecg.modules.teaching.model.AdditionalWorkModel">
+        select a.*, a.id additionalWorkId,
+        w.id mineWorkId, w.work_name mineWorkName, w.work_status mineWorkStatus,
+        (select file_path from sys_file where sys_file.id=w.work_file) mineWorkUrl,
+        (select file_path from sys_file where sys_file.id = w.work_cover) mineWorkCover
+        from teaching_additional_work a
+        left join teaching_work w on w.additional_id = a.id and w.user_id = #{userId}
+        where
+        a.status=1 and
+        <foreach collection="departIds" index="index" item="id" open="(" separator=" or " close=")">
+            a.work_dept like CONCAT('%',#{id},'%')
+        </foreach>
+        <if test="submit==true">
+            and w.work_status >= 1
+        </if>
+        <if test="submit==false">
+            and w.id is null or w.work_status <![CDATA[<]]> 1
+        </if>
+        <if test="submit==true and status != null">
+            and w.work_status = #{status}
+        </if>
+    </select>
+
+</mapper>

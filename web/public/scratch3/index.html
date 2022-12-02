@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" value="notranslate">
+  <link rel="shortcut icon" href="static/favicon.ico" />
+  <link rel="stylesheet" href="../css/scratch.css" />
+  <title>在线图形化编程</title>
+  <script async src="//api.paas.plus/js/errlog.js"></script>
+  <script src="../js/jquery.min.js"></script>
+  <script src="../js/jquery.cokie.min.js"></script>
+  <script src="../js/jquery.qrcode.min.js"></script>
+  <script src="../js/qiniu.min.js"></script>
+  <script src="../js/common.js"></script>
+  <script>
+    var canShare = true
+    var uploadParam = {}
+    var workName = ''
+    var workId = urlParams('workId')
+    var unitId = urlParams('unitId')
+    var workFileUrl = urlParams('workFile') //SB3路径
+    var workName = urlParams('workName') //作业名
+    var departId = urlParams('departId') //班级ID
+    var additionalId = urlParams('additionalId') //附加作业ID
+    var userInfo = getUserInfo();
+    var qn_token = getQiniuToken();
+    var workStatus = 0
+    setInterval(function () {
+      qn_token = getQiniuToken();
+    }, 600 * 1000)
+
+
+    var observer = {
+      next(res) { },
+      error(err) {
+        console.log(1, err)
+      },
+      complete(res) {
+        console.log(res)
+        if (res.key.endsWith('.jpg')) {
+          uploadParam.coverKey = uploadFile(res.key, '学生作业-封面', res.key,2)
+        } else {
+          uploadParam.projectKey = uploadFile(res.key, '学生作业-sb3', res.key,2)
+        }
+        uploadWork()
+      }
+    }
+
+    function handleFileUploaded(res){
+      console.log(res);
+      if(res.success){
+        var key = res.message
+        if(key.endsWith('.jpg')){
+          uploadParam.coverKey = uploadFile(key, '学生作业-封面', key,1)
+        }else{
+          uploadParam.projectKey = uploadFile(key, '学生作业-sb3', key,1)
+        }
+        uploadWork()
+      }else{
+        alert("上传失败：" + res.message)
+      }
+    }
+
+    // twl mine create course
+    var scene = urlParams("scene")
+
+    window.scratchConfig = {
+      logo: {
+        show: true, 
+        url: "/logo.png",
+        handleClickLogo: () => {
+          window.open("/")
+        }
+      }, 
+      stageArea: {
+        fullscreenButton:{ //全屏按钮
+          show: true,
+          handleBeforeSetStageUnFull(){ //退出全屏前的操作
+            return true
+          },
+          handleBeforeSetStageFull(){ //全屏前的操作
+            return true
+          }
+        },
+        startButton:{ //开始按钮
+          show: true,
+          handleBeforeStart(){ //开始前的操作
+            return true
+          }
+        },
+        stopButton:{ // 停止按钮
+          show: true,
+          handleBeforeStop(){ //停止前的操作
+            return true
+          }
+        }
+      },
+      menuBar: {
+        color: 'hsla(215, 100%, 65%, 1)',
+        //新建按钮
+        newButton:{
+          show: true,
+          handleBefore(){
+            return true
+          }
+        },
+        //从计算机加载按钮
+        loadFileButton:{
+          show: true,
+          handleBefore(){
+            return true
+          }
+        },
+        //保存到计算机按钮
+        saveFileButton:{
+          show: true,
+          handleBefore(){
+            return true
+          }
+        },
+        //加速模式按钮
+        turboModeButton:{
+          show: true
+        },
+        //教程按钮
+        helpButton:{
+          show: true,
+          handleBefore: ()=>{return true}
+        },
+         //我的物品按钮
+         myStuff:{
+          show: true,
+          url: '/account/center'
+        },
+        //用户头像按钮
+        userAvatar:{
+          show: true,
+          username: (userInfo && userInfo.realname) || '未登录',
+          avatar: (userInfo && getFileAccessHttpUrl(userInfo.avatar)) || './static/avatar.png',
+          handleClick(){
+            //弹出登录框等操作
+            console.log("点击头像")
+            window.open("/account/settings/BaseSetting")
+          }
+        },
+        customButtons: [
+          {
+            show: qn_token,
+            buttonName: '提交',
+            style:{
+              color: 'white',
+              background: 'hsla(30, 100%, 55%, 1)',
+            },
+            handleClick:()=>{
+              requestUpload(1)
+            }
+          },
+          {
+            show: qn_token,
+            buttonName: '保存',
+            style: {
+              color: 'white',
+              background: 'hsl(271deg 89% 70%)',
+            },
+            handleClick:()=>{
+              requestUpload(0)
+            }
+          },
+          //可继续新增按钮
+        ],
+      },
+      blocks:{
+        scale: 0.8, // 积木缩放比例
+        // 隐藏分类
+        hideCatagorys:[], 
+        hideBlocks:[],
+      },
+      handleVmInitialized: (vm) => {
+        window.vm = vm
+        console.log("VM初始化完毕")
+      },
+      handleProjectLoaded: () => {
+        console.log("作品载入完毕")
+      },
+      handleDefaultProjectLoaded: () => {
+        //默认作品加载完毕
+        if(workFileUrl){
+          window.scratch.loadProject(workFileUrl, () => {
+            $('.loading').hide()
+            $('.scratch-filter').hide()
+            window.scratch.setProjectName(workName)
+          })
+        }else if (workId) {
+          getWorkInfo(workId, function (info) {
+            window.scratch.loadProject(info.workFileKey_url, () => {
+              $('.loading').hide()
+              $('.scratch-filter').hide()
+              window.scratch.setProjectName(info.workName)
+            })
+          })
+        } else if(unitId){
+          getUnitInfo(unitId, function(info){
+            window.scratch.loadProject(info.courseWork_url, () => {
+              $('.loading').hide()
+              $('.scratch-filter').hide()
+              window.scratch.setProjectName(info.unitName)
+            })
+          })
+        } else {
+          window.scratch.loadProject('/project/project.sb3', () => {
+            window.scratch.setProjectName(userInfo?userInfo.realname + '作品' : 'Scratch作品')
+            $('.loading').hide()
+            $('.scratch-filter').hide()
+          })
+        }
+      },
+      //默认项目地址
+      defaultProjectURL: "./static/project.sb3",
+      //素材库配置
+      assets:{
+        //素材库地址
+        assetHost: JSON.parse(localStorage.getItem("CONFIG")).qn_base,
+        //素材库索引地址
+        defaultIndex:{
+          sprites: "./static/json_index/sprites.json",
+          costumes: "./static/json_index/costumes.json",
+          backdrops: "./static/json_index/backdrops.json",
+          sounds: "./static/json_index/sounds.json"
+        },
+        //拦截角色库打开
+        handleBeforeSpriteLibraryOpen(){
+          console.log("角色库打开")
+          //追加素材库
+          window.getScratchAssets(4,data=>{
+            window.scratch.pushSpriteLibrary(data)
+          })
+          return true;
+        },
+        //拦截造型库打开
+        handleBeforeCostumesLibraryOpen(){
+          window.getScratchAssets(3,data=>{
+            window.scratch.pushCostumesLibrary(data)
+          })
+          return true;
+        },
+        //拦截背景库打开
+        handleBeforeBackdropsLibraryOpen(){
+          window.getScratchAssets(1,data=>{
+            window.scratch.pushBackdropsLibrary(data)
+          })
+          return true;
+        },
+        //拦截声音库打开
+        handleBeforeSoundLibraryOpen(){
+          window.getScratchAssets(2,data=>{
+            window.scratch.pushSoundsLibrary(data)
+          })
+          return true;
+        }
+      }
+    }
+
+    //请求提交作业
+    function requestUpload(status){
+      workStatus = status
+      $('.scratch-filter').show()
+      $('.uploading').show()
+      var uuid = window.uuid()
+      uploadParam.projectTitle = window.scratch.getProjectName()
+      var defaultUploadType = JSON.parse(localStorage.getItem("CONFIG")).defaultUploadType
+      window.scratch.getProjectCoverBlob(cover => {
+        if(defaultUploadType == 'qiniu'){
+          upload2Qiniu(cover, 'project3/' + uuid + '.jpg', uploadParam.projectTitle, observer)
+        }else{
+          update2Local(cover,uploadParam.projectTitle + ".jpg", 'project3', handleFileUploaded)
+        }
+      })
+      window.scratch.getProjectFile(file => {
+        if(defaultUploadType == 'qiniu'){
+          upload2Qiniu(file, 'project3/' + uuid + '.sb3', uploadParam.projectTitle, observer)
+        }else{
+          update2Local(file, uploadParam.projectTitle + '.sb3', 'project3', handleFileUploaded)
+        }
+      })
+    }
+
+    //上传作业
+    function uploadWork() {
+      if (!uploadParam.projectKey || !uploadParam.coverKey) {
+        return
+      }
+      $.ajax({
+        url: '/api/teaching/teachingWork/submit',
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        beforeSend: function (request) {
+          request.setRequestHeader('X-Access-Token', getUserToken())
+        },
+        data: JSON.stringify({
+          courseId: unitId,
+          workCover: uploadParam.coverKey,
+          workFile: uploadParam.projectKey,
+          workName: uploadParam.projectTitle,
+          id: workId,
+          workType: 2,
+          workStatus: workStatus,
+          departId: departId,
+          additionalId: additionalId,
+        }),
+        success: function (res) {
+          canShare = true
+          if (res.code == 200) {
+            $('#projectTitle').html(projectTitle)
+            var shareUrl =
+              window.location.protocol +
+              '//' +
+              window.location.hostname +
+              (window.location.port ? ':' + window.location.port : '') +
+              '/scratch3/scratch-mobile.html?workId=' +
+              res.result.id
+            createCode('qrcode', shareUrl)
+		        var img = document.createElement('img');
+            img.id = 'qrCodeIco';
+            img.src = '/logo.png';
+            qrcode.appendChild(img);
+            $('.scratch-filter').show()
+            $('.release-success').show()
+          } else {
+            $('.release-false').show()
+          }
+        },
+        error: function () {
+          $('.release-false').show()
+        },
+        complete: function () {
+          $('.uploading').hide()
+        }
+      })
+    }
+
+  </script>
+</head>
+
+<body>
+  <div class="scratch-filter">
+    <div class="loading">
+      <div class="con-box">
+        <h4>请稍后</h4>
+        <span>正在加载中……</span>
+      </div>
+    </div>
+    <div class="uploading">
+      <div class="con-box">
+        <h4>请稍后</h4>
+        <div class="watch-works">
+          <span>上传中……</span>
+        </div>
+      </div>
+      <div class="fault-code">
+        <span>&times</span>
+      </div>
+    </div>
+    <div class="release-success">
+      <div class="con-box">
+        <h4><span id="projectTitle"></span> 提交成功</h4>
+        <p class="ercode-img">
+		      <span id="qrcode" style="align-items: center;display: flex; justify-content: center;"></span>
+        </p>
+        <div class="watch-works">
+          <span>微信扫描二维码使用手机体验</span>
+        </div>
+      </div>
+      <div class="fault-code">
+        <span>&times</span>
+      </div>
+    </div>
+    <div class="release-false">
+      <div class="con-box-two">
+        <h4>作品发布失败</h4>
+        <p class="smile-img">
+          <img src="../images/smile.png" alt="smile" />
+        </p>
+        <div class="refresh-release">
+          <span>请重新发布～</span>
+        </div>
+      </div>
+      <div class="fault-code">
+        <span>&times</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="scratch">
+
+  </div>
+
+</body>
+<script type="text/javascript" src="lib.min.js"></script>
+<script type="text/javascript" src="chunks/gui.js"></script>
+<script>
+  $('.fault-code').on('click', function () {
+    uploadParam = {}
+    $('.scratch-filter').hide()
+    $('.release-success').hide()
+    $('.release-false').hide()
+  })
+</script>
+
+</html>
